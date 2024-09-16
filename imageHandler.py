@@ -3,13 +3,15 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-from PySide6.QtGui import QImage
+from PyQt5.QtGui import QImage
+import os
 
 class ROSImageSubscriber:
     def __init__(self):
+        # os.environ['ROS_MASTER_URI'] = 'http://uono01-1:11311'
         rospy.init_node('image_subscriber_node')
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber('/your_image_topic', Image, self.callback)
+        self.image_sub = rospy.Subscriber('/camera/image_raw', Image, self.callback)
         self.image = None
 
     def callback(self, msg):
@@ -18,7 +20,7 @@ class ROSImageSubscriber:
 
     def get_image(self):
         return self.image
-    
+
 
 
 def cv_image_to_qimage(cv_image):

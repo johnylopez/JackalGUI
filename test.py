@@ -1,7 +1,8 @@
 import sys
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPalette, QColor
-from PySide6.QtWidgets import (
+import rospy
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtWidgets import (
     QApplication,
     QLabel,
     QLineEdit,
@@ -16,6 +17,9 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QFrame
 )
+
+from imageHandler import ROSImageSubscriber, cv_image_to_qimage
+
 class Color(QWidget):
 
     def __init__(self, color):
@@ -120,9 +124,15 @@ class MainWindow(QMainWindow):
         self.page2.setLayout(layout)
         self.page2.setFixedSize(600,600)
 
-app = QApplication(sys.argv)
 
+    
+app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
+
+def image_callback(cv_image):
+    window.update_image(cv_image)
+
+listener = ROSImageSubscriber(image_callback)
 
 app.exec()
