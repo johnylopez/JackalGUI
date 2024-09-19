@@ -1,7 +1,8 @@
 import sys
 import rospy
+from sensor_msgs.msg import Image, CompressedImage
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtGui import QPalette, QColor, QImage, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QLabel,
@@ -15,10 +16,11 @@ from PyQt5.QtWidgets import (
     QStackedLayout,
     QTextEdit,
     QPlainTextEdit,
-    QFrame
+    QFrame,
+    QComboBox
 )
 
-from imageHandler import ROSImageSubscriber, cv_image_to_qimage
+from imageHandler import ROSImageSubscriber
 
 class Color(QWidget):
 
@@ -39,18 +41,12 @@ class MainWindow(QMainWindow):
         self.setStyleSheet("background-color: lightblue;")
         self.mainLayout = QHBoxLayout()
 
-        self.green_background = QWidget()
-        self.green_background.setStyleSheet("background-color: green;")
-        self.green_background.setGeometry(0,0,400,400)
-        self.green_background.setFixedSize(600,400)
+        def image_callback(pixmap):
+            self.update_image(pixmap)   
+        self.listener = ROSImageSubscriber(image_callback, '/camera/image_raw')
 
-        self.mainLayout.addWidget(self.green_background)
-
-        
+        self.createImageScreen()
         self.createInfoScreen()
-
-        self.mainLayout.addWidget(self.page2)
-
 
         widget = QWidget()
         widget.setLayout(self.mainLayout)
@@ -123,16 +119,60 @@ class MainWindow(QMainWindow):
         # Set the layout for the page
         self.page2.setLayout(layout)
         self.page2.setFixedSize(600,600)
+        self.mainLayout.addWidget(self.page2)
 
+
+    def createImageScreen(self):
+        topics = rospy.get_published_topics()
+        cameras = []
+        for topic in topics:
+            if topic[1] == 'sensor_msgs/Image':
+                cameras.append(topic[0])
+            
+        #IMAGE VIEWER
+        self.image_background = QWidget()
+        self.imageLayout = QVBoxLayout()
+
+        self.combo_box = QComboBox(self)
+        self.combo_box.setFixedSize(400,30)
+        self.combo_box.addItems(cameras)
+        self.imageLayout.addWidget(self.combo_box)
+        self.combo_box.currentIndexChanged.connect(self.update_camera)
+
+        self.image = QLabel(self)
+        self.imageLayout.addWidget(self.image)
+        self.image_background.setGeometry(0,0,400,400)
+        self.image_background.setFixedSize(600,400)
+        self.image_background.setLayout(self.imageLayout)
+
+        self.mainLayout.addWidget(self.image_background)
+
+    def update_items(self):
+        topics = rospy.get_published_topics()
+        cameras = []
+        for topic in topics:
+            if topic[1] == 'sensor_msgs/Image':
+                cameras.append(topic[0])
+        self.combo_box.clear()
+        self.combo_box.addItems(cameras)
+
+    def update_camera(self):
+        selected_camera = self.combo_box.currentText()
+        self.listener.replace_topic(selected_camera)
 
     
-app = QApplication(sys.argv)
-window = MainWindow()
-window.show()
 
-def image_callback(cv_image):
-    window.update_image(cv_image)
+    def update_image(self, pixmap):
+        scaled_pixmap = pixmap.scaled(self.image.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.image.setPixmap(scaled_pixmap)
+    
 
-listener = ROSImageSubscriber(image_callback)
+def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
+    
 
-app.exec()
+if __name__ == '__main__':
+    main()
