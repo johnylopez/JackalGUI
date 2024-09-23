@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import rospy
 from sensor_msgs.msg import Image, CompressedImage
 from PyQt5.QtCore import Qt
@@ -45,6 +46,10 @@ class MainWindow(QMainWindow):
             self.update_image(pixmap)   
         self.listener = ROSImageSubscriber(image_callback, '/camera/image_raw')
 
+        self.terminal_output = QPlainTextEdit()
+        self.camera_process = None
+        self.yolo_process = None
+
         self.createImageScreen()
         self.createInfoScreen()
 
@@ -79,17 +84,23 @@ class MainWindow(QMainWindow):
         #LOAD MODEL BUTTONS
         buttonWidget = QWidget()
         buttonLayout = QHBoxLayout()
-        button1 = QPushButton("TF Model")
-        button1.setFixedSize(100,50)
-        buttonLayout.addWidget(button1)
+        self.button1 = QPushButton("TF Model")
+        self.button1.setFixedSize(120,50)
+        buttonLayout.addWidget(self.button1)
 
-        button2 = QPushButton("TensorRT Mode")
-        button2.setFixedSize(100,50)
-        buttonLayout.addWidget(button2)
+        self.button2 = QPushButton("TensorRT Mode")
+        self.button2.setFixedSize(120,50)
+        buttonLayout.addWidget(self.button2)
 
-        button3 = QPushButton("YoloV7 Model")
-        button3.setFixedSize(100,50)
-        buttonLayout.addWidget(button3)
+        self.button3 = QPushButton("YoloV7 Model")
+        self.button3.setFixedSize(120,50)
+        self.button3.clicked.connect(self.launch_yolo)
+        buttonLayout.addWidget(self.button3)
+
+        self.button4 = QPushButton("Raw Image")
+        self.button4.setFixedSize(120,50)
+        self.button4.clicked.connect(self.launch_raw_camera)
+        buttonLayout.addWidget(self.button4)
 
         buttonWidget.setLayout(buttonLayout)
         layout.addWidget(buttonWidget)
@@ -100,18 +111,15 @@ class MainWindow(QMainWindow):
         infoLayout.setSpacing(0)
         terminalLabel = QLabel("Console Output")
         terminalLayout.addWidget(terminalLabel)
-        terminal_output = QPlainTextEdit()
-        terminal_output.setReadOnly(True)
-        terminal_output.setFixedSize(500,200)
-        terminal_output.setStyleSheet("background-color: black; color: white;")
-        terminal_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        terminal_output.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        terminal_output.appendPlainText("When I die, I want this song playing in the background. I want to be sitting on a bench, staring at the sea, remembering the time she made me the happiest. Just replaying what I once had, what I'll only see in my mind, a treasure for no one but me.This man is from an era where you help others in need and don't expect anything in return or any recognition. This is how it should be. It's how it used to be once. We need to get back to those times. If you don't stand for something you'll fall for anything When I die, I want this song playing in the background. I want to be sitting on a bench, staring at the sea, remembering the time she made me the happiest. Just replaying what I once had, what I'll only see in my mind, a treasure for no one but me.This man is from an era where you help others in need and don't expect anything in return or any recognition. This is how it should be. It's how it used to be once. We need to get back to those times. If you don't stand for something you'll fall for anything When I die, I want this song playing in the background. I want to be sitting on a bench, staring at the sea, remembering the time she made me the happiest. Just replaying what I once had, what I'll only see in my mind, a treasure for no one but me.This man is from an era where you help others in need and don't expect anything in return or any recognition. This is how it should be. It's how it used to be once. We need to get back to those times. If you don't stand for something you'll fall for anything  ")
-        terminalLayout.addWidget(terminal_output,alignment=Qt.AlignTop)
+        
+        self.terminal_output.setReadOnly(True)
+        self.terminal_output.setFixedSize(550,200)
+        self.terminal_output.setStyleSheet("background-color: black; color: white;")
+        self.terminal_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.terminal_output.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        terminalLayout.addWidget(self.terminal_output,alignment=Qt.AlignTop)
         terminalWidget.setLayout(terminalLayout)
         layout.addWidget(terminalWidget,alignment=Qt.AlignLeft)
-
-        
 
         button = QPushButton("Bottom Aligned Button")
         layout.addWidget(button, alignment=Qt.AlignCenter)
@@ -132,20 +140,66 @@ class MainWindow(QMainWindow):
         #IMAGE VIEWER
         self.image_background = QWidget()
         self.imageLayout = QVBoxLayout()
+        self.comboBackground = QWidget()
+        self.comboLayout = QHBoxLayout()
 
         self.combo_box = QComboBox(self)
         self.combo_box.setFixedSize(400,30)
         self.combo_box.addItems(cameras)
-        self.imageLayout.addWidget(self.combo_box)
         self.combo_box.currentIndexChanged.connect(self.update_camera)
+        self.terminal_output.appendPlainText("Camera")
+        self.comboLayout.addWidget(self.combo_box)
+
+        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button.setFixedSize(70,30)
+        self.refresh_button.clicked.connect(self.update_items)
+        self.comboLayout.addWidget(self.refresh_button)
+        self.comboBackground.setFixedSize(600,40)
+        self.comboBackground.setLayout(self.comboLayout)
 
         self.image = QLabel(self)
+        self.imageLayout.addWidget(self.comboBackground)
         self.imageLayout.addWidget(self.image)
         self.image_background.setGeometry(0,0,400,400)
         self.image_background.setFixedSize(600,400)
         self.image_background.setLayout(self.imageLayout)
 
         self.mainLayout.addWidget(self.image_background)
+
+    def launch_raw_camera(self):
+        command = ["roslaunch", "compressed_to_raw", "compressed_to_raw.launch"]
+        self.camera_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.terminal_output.appendPlainText("Raw Image launched succesully")
+        self.button4.setText("Close Image Raw")
+        self.button4.clicked.disconnect()
+        self.button4.clicked.connect(self.close_camera_process)
+
+    def launch_yolo(self):
+        if self.camera_process and self.camera_process.poll() != 0:
+            command = ["roslaunch", "yolov7_ros", "yolov7.launch"]
+            self.yolo_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.terminal_output.appendPlainText("Launching YoloV7...")
+            self.button3.setText("Close YoloV7")
+            self.button3.clicked.disconnect()
+            self.button3.clicked.connect(self.close_yolo_process)
+        else:
+            self.terminal_output.appendPlainText("Image Raw must be initialized before launching YoloV7")
+
+    def close_camera_process(self):
+        if self.camera_process:
+            self.camera_process.terminate()
+            self.button4.setText("Raw Image")
+            self.terminal_output.appendPlainText("Raw Image closed")
+            self.button4.clicked.disconnect()
+            self.button4.clicked.connect(self.launch_raw_camera)
+
+    def close_yolo_process(self):
+        if self.yolo_process:
+            self.yolo_process.terminate()
+            self.button3.setText("Yolo V7")
+            self.terminal_output.appendPlainText("YoloV7 closed")
+            self.button3.clicked.disconnect()
+            self.button3.clicked.connect(self.launch_yolo)
 
     def update_items(self):
         topics = rospy.get_published_topics()
@@ -159,8 +213,6 @@ class MainWindow(QMainWindow):
     def update_camera(self):
         selected_camera = self.combo_box.currentText()
         self.listener.replace_topic(selected_camera)
-
-    
 
     def update_image(self, pixmap):
         scaled_pixmap = pixmap.scaled(self.image.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
