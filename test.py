@@ -1,7 +1,9 @@
 import sys
+import os
 import subprocess
 import rospy
 from sensor_msgs.msg import Image, CompressedImage
+from imageHandler import ROSImageSubscriber
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor, QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -20,8 +22,6 @@ from PyQt5.QtWidgets import (
     QFrame,
     QComboBox
 )
-
-from imageHandler import ROSImageSubscriber
 
 class Color(QWidget):
 
@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
         self.terminal_output = QPlainTextEdit()
         self.camera_process = None
         self.yolo_process = None
+        self.culvertai_pytorch_process = None
 
         self.createImageScreen()
         self.createInfoScreen()
@@ -88,8 +89,9 @@ class MainWindow(QMainWindow):
         self.button1.setFixedSize(120,50)
         buttonLayout.addWidget(self.button1)
 
-        self.button2 = QPushButton("TensorRT Mode")
+        self.button2 = QPushButton("CulvertAI PT")
         self.button2.setFixedSize(120,50)
+        self.button2.clicked.connect(self.launch_culvertai_pytorch)
         buttonLayout.addWidget(self.button2)
 
         self.button3 = QPushButton("YoloV7 Model")
@@ -174,16 +176,35 @@ class MainWindow(QMainWindow):
         self.button4.clicked.disconnect()
         self.button4.clicked.connect(self.close_camera_process)
 
+    def launch_culvertai_pytorch(self):
+        if self.camera_process and self.camera_process.poll() != 0:
+            command = ["roslaunch", "culvertai_pytorch", "culvertaipytorch.launch"]
+            self.culvertai_pytorch_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.terminal_output.appendPlainText("Launching Culvert and Sewer Inspection on pytorch...")
+            self.button2.setText("Close Culvert and Sewer inspection on Pytorch")
+            self.button2.clicked.disconnect()
+            self.button2.clicked.connect(self.close_culvert_pytorch_process)
+        else:
+            self.terminal_output.appendPlainText("Image Raw must be initialized before launching CulvertAI")
+    
     def launch_yolo(self):
         if self.camera_process and self.camera_process.poll() != 0:
             command = ["roslaunch", "yolov7_ros", "yolov7.launch"]
             self.yolo_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.terminal_output.appendPlainText("Launching YoloV7...")
+            self.terminal_output.appendPlainText("Launching Culvert and Sewer Inspection on pytorch...")
             self.button3.setText("Close YoloV7")
             self.button3.clicked.disconnect()
             self.button3.clicked.connect(self.close_yolo_process)
         else:
             self.terminal_output.appendPlainText("Image Raw must be initialized before launching YoloV7")
+
+    def close_culvert_pytorch_process(self):
+        if self.culvertai_pytorch_process:
+            self.culvertai_pytorch_process.terminate()
+            self.button2.setText("CulvertAI PT")
+            self.terminal_output.appendPlainText("CulvertAI Pytorch closed")
+            self.button2.clicked.disconnect()
+            self.button2.clicked.connect(self.launch_culvertai_pytorch)
 
     def close_camera_process(self):
         if self.camera_process:
@@ -222,9 +243,10 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     window = MainWindow()
+
     window.show()
     sys.exit(app.exec())
     
 
 if __name__ == '__main__':
-    main()
+    main() 
