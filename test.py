@@ -2,6 +2,7 @@ import sys
 import os
 import subprocess
 import rospy
+from datetime import datetime
 from sensor_msgs.msg import Image, CompressedImage
 from imageHandler import ROSImageSubscriber
 from PyQt5.QtCore import Qt
@@ -43,13 +44,15 @@ class MainWindow(QMainWindow):
         self.mainLayout = QHBoxLayout()
 
         def image_callback(pixmap):
-            self.update_image(pixmap)   
+            self.update_image(pixmap)
+            self.calculate_and_show_fps()   
         self.listener = ROSImageSubscriber(image_callback, '/camera/image_raw')
 
         self.terminal_output = QPlainTextEdit()
         self.camera_process = None
         self.yolo_process = None
         self.culvertai_pytorch_process = None
+        self.time = datetime.now()
 
         self.createImageScreen()
         self.createInfoScreen()
@@ -149,7 +152,6 @@ class MainWindow(QMainWindow):
         self.combo_box.setFixedSize(400,30)
         self.combo_box.addItems(cameras)
         self.combo_box.currentIndexChanged.connect(self.update_camera)
-        self.terminal_output.appendPlainText("Camera")
         self.comboLayout.addWidget(self.combo_box)
 
         self.refresh_button = QPushButton("Refresh")
@@ -159,11 +161,19 @@ class MainWindow(QMainWindow):
         self.comboBackground.setFixedSize(600,40)
         self.comboBackground.setLayout(self.comboLayout)
 
+        title = QLabel("CAMERAS: ")
+        title.setFixedSize(90,20)
+
+        self.fps = QLabel(self)
+        self.fps.setFixedSize(70,20)
+
         self.image = QLabel(self)
+        self.imageLayout.addWidget(title)
         self.imageLayout.addWidget(self.comboBackground)
         self.imageLayout.addWidget(self.image)
+        self.imageLayout.addWidget(self.fps)
         self.image_background.setGeometry(0,0,400,400)
-        self.image_background.setFixedSize(600,400)
+        self.image_background.setFixedSize(600,500)
         self.image_background.setLayout(self.imageLayout)
 
         self.mainLayout.addWidget(self.image_background)
@@ -172,7 +182,7 @@ class MainWindow(QMainWindow):
         command = ["roslaunch", "compressed_to_raw", "compressed_to_raw.launch"]
         self.camera_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.terminal_output.appendPlainText("Raw Image launched succesully")
-        self.button4.setText("Close Image Raw")
+        self.button4.setText("Close Raw Image")
         self.button4.clicked.disconnect()
         self.button4.clicked.connect(self.close_camera_process)
 
@@ -185,24 +195,25 @@ class MainWindow(QMainWindow):
             self.button2.clicked.disconnect()
             self.button2.clicked.connect(self.close_culvert_pytorch_process)
         else:
-            self.terminal_output.appendPlainText("Image Raw must be initialized before launching CulvertAI")
+            self.terminal_output.appendPlainText("Raw Image must be initialized before launching CulvertAI")
     
     def launch_yolo(self):
         if self.camera_process and self.camera_process.poll() != 0:
             command = ["roslaunch", "yolov7_ros", "yolov7.launch"]
             self.yolo_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.terminal_output.appendPlainText("Launching Culvert and Sewer Inspection on pytorch...")
+            self.terminal_output.appendPlainText("Launching YoloV7...")
             self.button3.setText("Close YoloV7")
             self.button3.clicked.disconnect()
             self.button3.clicked.connect(self.close_yolo_process)
         else:
-            self.terminal_output.appendPlainText("Image Raw must be initialized before launching YoloV7")
+            self.terminal_output.appendPlainText("Raw Image must be initialized before launching YoloV7")
 
     def close_culvert_pytorch_process(self):
         if self.culvertai_pytorch_process:
             self.culvertai_pytorch_process.terminate()
             self.button2.setText("CulvertAI PT")
             self.terminal_output.appendPlainText("CulvertAI Pytorch closed")
+            self.fps.setText("")
             self.button2.clicked.disconnect()
             self.button2.clicked.connect(self.launch_culvertai_pytorch)
 
@@ -211,6 +222,7 @@ class MainWindow(QMainWindow):
             self.camera_process.terminate()
             self.button4.setText("Raw Image")
             self.terminal_output.appendPlainText("Raw Image closed")
+            self.fps.setText("")
             self.button4.clicked.disconnect()
             self.button4.clicked.connect(self.launch_raw_camera)
 
@@ -219,6 +231,7 @@ class MainWindow(QMainWindow):
             self.yolo_process.terminate()
             self.button3.setText("Yolo V7")
             self.terminal_output.appendPlainText("YoloV7 closed")
+            self.fps.setText("")
             self.button3.clicked.disconnect()
             self.button3.clicked.connect(self.launch_yolo)
 
@@ -230,6 +243,13 @@ class MainWindow(QMainWindow):
                 cameras.append(topic[0])
         self.combo_box.clear()
         self.combo_box.addItems(cameras)
+
+    def calculate_and_show_fps(self): 
+        # FPS
+        timediff = datetime.now() - self.time
+        self.time = datetime.now()
+        fps = round(1.0 / timediff.total_seconds(),2)
+        self.fps.setText("FPS: " + str(fps))
 
     def update_camera(self):
         selected_camera = self.combo_box.currentText()
