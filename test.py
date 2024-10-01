@@ -4,7 +4,9 @@ import subprocess
 import rospy
 from datetime import datetime
 from sensor_msgs.msg import Image, CompressedImage
+from jackal_msgs.msg import Feedback
 from imageHandler import ROSImageSubscriber
+from feedbackHandler import ROSJackalMesssagesSubscriber
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor, QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -46,7 +48,15 @@ class MainWindow(QMainWindow):
         def image_callback(pixmap):
             self.update_image(pixmap)
             self.calculate_and_show_fps()   
-        self.listener = ROSImageSubscriber(image_callback, '/camera/image_raw')
+        self.cameraListener = ROSImageSubscriber(image_callback, '/camera/image_raw')
+
+        def control_center_callback(data):
+            print(data.pcb_temperature)
+        self.feedbackListener = ROSJackalMesssagesSubscriber(control_center_callback, '/feedback', 'feedback_node')
+
+
+
+
 
         self.terminal_output = QPlainTextEdit()
         self.camera_process = None
@@ -253,7 +263,7 @@ class MainWindow(QMainWindow):
 
     def update_camera(self):
         selected_camera = self.combo_box.currentText()
-        self.listener.replace_topic(selected_camera)
+        self.cameraListener.replace_topic(selected_camera)
 
     def update_image(self, pixmap):
         scaled_pixmap = pixmap.scaled(self.image.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)

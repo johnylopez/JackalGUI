@@ -10,7 +10,7 @@ class ROSImageSubscriber:
     def __init__(self, image_callback, image_topic):
         self.image_callback = image_callback
         self.image_topic = image_topic
-        rospy.init_node('image_subscriber_node')
+        rospy.init_node('image_subscriber_node', anonymous=True)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber(self.image_topic, Image, self.callback)
         self.pixmap = None
