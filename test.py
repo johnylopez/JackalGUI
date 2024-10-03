@@ -2,11 +2,12 @@ import sys
 import os
 import subprocess
 import rospy
+import math
 from datetime import datetime
 from sensor_msgs.msg import Image, CompressedImage
 from jackal_msgs.msg import Feedback
 from imageHandler import ROSImageSubscriber
-from feedbackHandler import ROSJackalMesssagesSubscriber
+from feedbackHandler import ROSJackalMesssagesSubscriber, ROSJackalDiagnosticMesssagesSubscriber
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor, QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -47,16 +48,18 @@ class MainWindow(QMainWindow):
 
         def image_callback(pixmap):
             self.update_image(pixmap)
-            self.calculate_and_show_fps()   
+            # self.calculate_and_show_fps()   
         self.cameraListener = ROSImageSubscriber(image_callback, '/camera/image_raw')
 
-        def control_center_callback(data):
-            print(data.pcb_temperature)
-        self.feedbackListener = ROSJackalMesssagesSubscriber(control_center_callback, '/feedback', 'feedback_node')
+        # def control_center_callback(data):
+        #     print("Motor 1 temperature: " + str(data.drivers[0].motor_temperature))
+        #     print("Motor 2 temperature: " + str(data.drivers[1].motor_temperature))
+        #     print()
 
 
+        # self.feedbackListener = ROSJackalMesssagesSubscriber(control_center_callback, '/feedback', 'feedback_node')
 
-
+        
 
         self.terminal_output = QPlainTextEdit()
         self.camera_process = None
@@ -66,6 +69,18 @@ class MainWindow(QMainWindow):
 
         self.createImageScreen()
         self.createInfoScreen()
+
+        def control_center_callback2(data):
+            if data.status[0].name == "jackal_node: General":
+                self.label1.setText("Systems General: " + data.status[0].message)
+                self.label2.setText("Battery: " + data.status[1].message)
+                self.label3.setText("Battery Voltage: " + data.status[1].values[0].value + "V")
+                self.label4.setText("Current Consumption: " + data.status[3].message)
+                self.label5.setText("Power Consumption: " + data.status[4].message)
+                print(data.status[3].values)
+                print("\n")
+
+        self.diagnosticListener = ROSJackalDiagnosticMesssagesSubscriber(control_center_callback2, '/diagnostics')
 
         widget = QWidget()
         widget.setLayout(self.mainLayout)
@@ -79,21 +94,48 @@ class MainWindow(QMainWindow):
         # self.page2.setStyleSheet("border: 2px solid black;")  
         
         #INFO CENTER
+        generalInfoWidget = QWidget()
+        generalInfoLayout = QHBoxLayout()
+
         infoWidget = QWidget()
         infoLayout = QVBoxLayout()
         infoLayout.setSpacing(0)
         label = QLabel("Clearpath Jackal Control Center")
         infoLayout.addWidget(label)
-        label1 = QLabel("Velocity: ")
-        infoLayout.addWidget(label1)
-        label2 = QLabel("X Pos:")
-        infoLayout.addWidget(label2)
-        label3 = QLabel("Y Pos:")
-        infoLayout.addWidget(label3)
-        label4 = QLabel("Etc: ")
-        infoLayout.addWidget(label4)
+        self.label1 = QLabel("Systems General: ")
+        infoLayout.addWidget(self.label1)
+        self.label2 = QLabel("Battery: ")
+        infoLayout.addWidget(self.label2)
+        self.label3 = QLabel("Battery Voltage: ")
+        infoLayout.addWidget(self.label3)
+        self.label4 = QLabel("Current Consumption: ")
+        infoLayout.addWidget(self.label4)
+        self.label5 = QLabel("Power Consumption: ")
+        infoLayout.addWidget(self.label5)
         infoWidget.setLayout(infoLayout)
-        layout.addWidget(infoWidget, alignment= Qt.AlignLeft)
+        
+        tempInfoWidget = QWidget()
+        tempInfoLayout = QVBoxLayout()
+        tempInfoLayout.setSpacing(0)
+        self.label6 = QLabel("HEYTHERY")
+        tempInfoLayout.addWidget(self.label6)
+        self.label7 = QLabel("HEYTHERY")
+        tempInfoLayout.addWidget(self.label7)
+        self.label8 = QLabel("HEYTHERY")
+        tempInfoLayout.addWidget(self.label8)
+        self.label9 = QLabel("HEYTHERY")
+        tempInfoLayout.addWidget(self.label9)
+        tempInfoWidget.setLayout(tempInfoLayout)
+
+        generalInfoLayout.addWidget(infoWidget)
+        generalInfoLayout.addWidget(tempInfoWidget)
+        generalInfoWidget.setLayout(generalInfoLayout)
+
+
+        
+        # layout.setStyleSheet("border: 2px solid black;")
+
+        layout.addWidget(generalInfoWidget, alignment= Qt.AlignLeft)
 
         #LOAD MODEL BUTTONS
         buttonWidget = QWidget()
@@ -271,6 +313,7 @@ class MainWindow(QMainWindow):
     
 
 def main():
+    rospy.init_node('jackalgui_node', anonymous=True)
     app = QApplication(sys.argv)
     window = MainWindow()
 
