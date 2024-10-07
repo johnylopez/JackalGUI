@@ -7,19 +7,26 @@ from PyQt5.QtGui import QImage, QPixmap
 import os
 
 class ROSImageSubscriber:
-    def __init__(self, image_callback, image_topic):
+    def __init__(self, image_callback, image_topic, msg_type):
         self.image_callback = image_callback
         self.image_topic = image_topic
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber(self.image_topic, Image, self.callback)
+        self.msg_type = msg_type
+        self.image_sub = rospy.Subscriber(self.image_topic, self.msg_type, self.callback)
         self.pixmap = None
 
     def replace_topic(self, topic):
         self.image_sub.unregister()
-        self.image_sub = rospy.Subscriber(topic, Image, self.callback)
+        self.image_sub = rospy.Subscriber(topic, self.msg_type, self.callback)
 
     def callback(self, msg):
-        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        if isinstance(msg, Image):
+            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        elif isinstance(msg, CompressedImage):
+            np_array = np.frombuffer(msg.data, np.uint8)
+            cv_image = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+        
+        # cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         qt_image = self.convert_cv_to_qt(cv_image)
         pixmap = QPixmap(qt_image)
         self.image_callback(pixmap)

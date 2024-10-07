@@ -7,7 +7,7 @@ from datetime import datetime
 from sensor_msgs.msg import Image, CompressedImage
 from jackal_msgs.msg import Feedback
 from imageHandler import ROSImageSubscriber
-from feedbackHandler import ROSJackalMesssagesSubscriber, ROSJackalDiagnosticMesssagesSubscriber
+from feedbackHandler import ROSJackalMesssagesSubscriber, ROSJackalDiagnosticMesssagesSubscriber, ROSJackalWifiConnectedSubscriber
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor, QImage, QPixmap
 from PyQt5.QtWidgets import (
@@ -49,17 +49,27 @@ class MainWindow(QMainWindow):
         def image_callback(pixmap):
             self.update_image(pixmap)
             # self.calculate_and_show_fps()   
-        self.cameraListener = ROSImageSubscriber(image_callback, '/camera/image_raw')
+        self.cameraListener = ROSImageSubscriber(image_callback, '/axis/image_raw/compressed', CompressedImage)
 
-        # def control_center_callback(data):
-        #     print("Motor 1 temperature: " + str(data.drivers[0].motor_temperature))
-        #     print("Motor 2 temperature: " + str(data.drivers[1].motor_temperature))
-        #     print()
-
-
-        # self.feedbackListener = ROSJackalMesssagesSubscriber(control_center_callback, '/feedback', 'feedback_node')
-
-        
+        def feedback_center_callback(data):
+            self.motor1_label.setText("Motor #1 Temp: " + str(math.ceil(data.drivers[0].motor_temperature)) + "C")
+            self.bridge1_label.setText("Bridge #1 Temp: " + str(math.ceil(data.drivers[0].bridge_temperature)) + "C")
+            if data.drivers[0].driver_fault == False:
+                self.motor1_status_label.setText("Motor #1 Status: Active")
+            else:
+                self.motor1_status_label.setText("Motor #1 Status: Faulty")
+            
+            self.motor2_label.setText("Motor #2 Temp: " + str(math.ceil(data.drivers[1].motor_temperature)) + "C")
+            self.bridge2_label.setText("Bridge #2 Temp: " + str(math.ceil(data.drivers[1].bridge_temperature)) + "C")
+            if data.drivers[1].driver_fault == False:
+                self.motor2_status_label.setText("Motor #2 Status: Active")
+            else:
+                self.motor2_status_label.setText("Motor #2 Status: Faulty")
+            
+            self.mcu_temp_label.setText("MCU Temp: " + str(math.ceil(data.mcu_temperature)) + "C")
+            self.pcb_temp_label.setText("PCB Temp: " + str(math.ceil(data.pcb_temperature)) + "C")
+            
+        self.feedbackListener = ROSJackalMesssagesSubscriber(feedback_center_callback, '/feedback', 'feedback_node')
 
         self.terminal_output = QPlainTextEdit()
         self.camera_process = None
@@ -70,17 +80,25 @@ class MainWindow(QMainWindow):
         self.createImageScreen()
         self.createInfoScreen()
 
-        def control_center_callback2(data):
+        def general_center_callback(data):
             if data.status[0].name == "jackal_node: General":
                 self.label1.setText("Systems General: " + data.status[0].message)
                 self.label2.setText("Battery: " + data.status[1].message)
-                self.label3.setText("Battery Voltage: " + data.status[1].values[0].value + "V")
+                self.label3.setText("Battery Voltage: " + str(math.ceil(float(data.status[1].values[0].value))) + "V")
                 self.label4.setText("Current Consumption: " + data.status[3].message)
                 self.label5.setText("Power Consumption: " + data.status[4].message)
-                print(data.status[3].values)
-                print("\n")
+                # print(data.status[3].values)
+                # print("\n")
 
-        self.diagnosticListener = ROSJackalDiagnosticMesssagesSubscriber(control_center_callback2, '/diagnostics')
+        self.diagnosticListener = ROSJackalDiagnosticMesssagesSubscriber(general_center_callback, '/diagnostics')
+
+
+        def wifi_callback(data):
+            if data.data == True:
+                self.wifi_label.setText("Wifi: Connected")
+            else:
+                self.wifi_label.setText("Wifi: Not Connected")
+        self.wifiListener = ROSJackalWifiConnectedSubscriber(wifi_callback, '/wifi_connected')
 
         widget = QWidget()
         widget.setLayout(self.mainLayout)
@@ -117,22 +135,31 @@ class MainWindow(QMainWindow):
         tempInfoWidget = QWidget()
         tempInfoLayout = QVBoxLayout()
         tempInfoLayout.setSpacing(0)
-        self.label6 = QLabel("HEYTHERY")
-        tempInfoLayout.addWidget(self.label6)
-        self.label7 = QLabel("HEYTHERY")
-        tempInfoLayout.addWidget(self.label7)
-        self.label8 = QLabel("HEYTHERY")
-        tempInfoLayout.addWidget(self.label8)
-        self.label9 = QLabel("HEYTHERY")
-        tempInfoLayout.addWidget(self.label9)
+        self.wifi_label = QLabel("Wifi: ")
+        tempInfoLayout.addWidget(self.wifi_label)
+        self.motor1_label = QLabel("Motor #1 Temp:")
+        tempInfoLayout.addWidget(self.motor1_label)
+        self.bridge1_label = QLabel("Bridge #1 Temp:")
+        tempInfoLayout.addWidget(self.bridge1_label)
+        self.motor1_status_label = QLabel("Motor #1 Status:")
+        tempInfoLayout.addWidget(self.motor1_status_label)
+
+        self.motor2_label = QLabel("Motor #2 Temp")
+        tempInfoLayout.addWidget(self.motor2_label)
+        self.bridge2_label = QLabel("Bridge #2 Temp:")
+        tempInfoLayout.addWidget(self.bridge2_label)
+        self.motor2_status_label = QLabel("Motor #2 Status:")
+        tempInfoLayout.addWidget(self.motor2_status_label)
+        self.mcu_temp_label = QLabel("MCU Temp:")
+        tempInfoLayout.addWidget(self.mcu_temp_label)
+        self.pcb_temp_label = QLabel("PCB Temp:")
+        tempInfoLayout.addWidget(self.pcb_temp_label)
         tempInfoWidget.setLayout(tempInfoLayout)
 
         generalInfoLayout.addWidget(infoWidget)
         generalInfoLayout.addWidget(tempInfoWidget)
         generalInfoWidget.setLayout(generalInfoLayout)
 
-
-        
         # layout.setStyleSheet("border: 2px solid black;")
 
         layout.addWidget(generalInfoWidget, alignment= Qt.AlignLeft)
@@ -191,7 +218,7 @@ class MainWindow(QMainWindow):
         topics = rospy.get_published_topics()
         cameras = []
         for topic in topics:
-            if topic[1] == 'sensor_msgs/Image':
+            if topic[1] == 'sensor_msgs/Image' or topic[1] == 'sensor_msgs/CompressedImage':
                 cameras.append(topic[0])
             
         #IMAGE VIEWER
@@ -203,7 +230,7 @@ class MainWindow(QMainWindow):
         self.combo_box = QComboBox(self)
         self.combo_box.setFixedSize(400,30)
         self.combo_box.addItems(cameras)
-        self.combo_box.currentIndexChanged.connect(self.update_camera)
+        # self.combo_box.currentIndexChanged.connect(self.update_camera)
         self.comboLayout.addWidget(self.combo_box)
 
         self.refresh_button = QPushButton("Refresh")
@@ -291,7 +318,9 @@ class MainWindow(QMainWindow):
         topics = rospy.get_published_topics()
         cameras = []
         for topic in topics:
-            if topic[1] == 'sensor_msgs/Image':
+            if topic[1] == 'sensor_msgs/Image' or topic[1] == 'sensor_msgs/CompressedImage':
+                print(topic)
+                # print(topic[0])
                 cameras.append(topic[0])
         self.combo_box.clear()
         self.combo_box.addItems(cameras)
@@ -302,7 +331,7 @@ class MainWindow(QMainWindow):
         self.time = datetime.now()
         fps = round(1.0 / timediff.total_seconds(),2)
         self.fps.setText("FPS: " + str(fps))
-
+    
     def update_camera(self):
         selected_camera = self.combo_box.currentText()
         self.cameraListener.replace_topic(selected_camera)
