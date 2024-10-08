@@ -20,7 +20,7 @@ class ROSImageSubscriber:
             self.msg_type = CompressedImage 
         else:
             self.msg_type = Image
-        # self.msg_type = msg_type
+            
         self.image_sub.unregister()
         self.image_sub = rospy.Subscriber(topic, self.msg_type, self.callback)
 
@@ -31,7 +31,6 @@ class ROSImageSubscriber:
             np_array = np.frombuffer(msg.data, np.uint8)
             cv_image = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
         
-        # cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         qt_image = self.convert_cv_to_qt(cv_image)
         pixmap = QPixmap(qt_image)
         self.image_callback(pixmap)
