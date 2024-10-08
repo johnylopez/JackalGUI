@@ -15,7 +15,12 @@ class ROSImageSubscriber:
         self.image_sub = rospy.Subscriber(self.image_topic, self.msg_type, self.callback)
         self.pixmap = None
 
-    def replace_topic(self, topic):
+    def replace_topic(self, topic, msg_type):
+        if msg_type == 'sensor_msgs/CompressedImage': 
+            self.msg_type = CompressedImage 
+        else:
+            self.msg_type = Image
+        # self.msg_type = msg_type
         self.image_sub.unregister()
         self.image_sub = rospy.Subscriber(topic, self.msg_type, self.callback)
 

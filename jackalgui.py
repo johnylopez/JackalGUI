@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         self.yolo_process = None
         self.culvertai_pytorch_process = None
         self.time = datetime.now()
+        self.cameras_dict = {}
 
         self.createImageScreen()
         self.createInfoScreen()
@@ -230,7 +231,7 @@ class MainWindow(QMainWindow):
         self.combo_box = QComboBox(self)
         self.combo_box.setFixedSize(400,30)
         self.combo_box.addItems(cameras)
-        # self.combo_box.currentIndexChanged.connect(self.update_camera)
+        self.combo_box.currentIndexChanged.connect(self.update_camera)
         self.comboLayout.addWidget(self.combo_box)
 
         self.refresh_button = QPushButton("Refresh")
@@ -317,11 +318,12 @@ class MainWindow(QMainWindow):
     def update_items(self):
         topics = rospy.get_published_topics()
         cameras = []
+        self.cameras_dict = {}
         for topic in topics:
             if topic[1] == 'sensor_msgs/Image' or topic[1] == 'sensor_msgs/CompressedImage':
-                print(topic)
-                # print(topic[0])
+                self.cameras_dict[topic[0]] = topic[1]
                 cameras.append(topic[0])
+
         self.combo_box.clear()
         self.combo_box.addItems(cameras)
 
@@ -334,7 +336,7 @@ class MainWindow(QMainWindow):
     
     def update_camera(self):
         selected_camera = self.combo_box.currentText()
-        self.cameraListener.replace_topic(selected_camera)
+        self.cameraListener.replace_topic(selected_camera, self.cameras_dict[selected_camera])
 
     def update_image(self, pixmap):
         scaled_pixmap = pixmap.scaled(self.image.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
