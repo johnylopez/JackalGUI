@@ -42,14 +42,29 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        self.setWindowTitle("My App")
-        self.setStyleSheet("background-color: lightblue;")
+        self.setWindowTitle("Clearpath Jackal Control Center")
         self.mainLayout = QHBoxLayout()
 
-        def image_callback(pixmap):
-            self.update_image(pixmap)
-            # self.calculate_and_show_fps()   
-        self.cameraListener = ROSImageSubscriber(image_callback, '/axis/image_raw/compressed', CompressedImage)
+        self.backgroundLabel = QLabel(self)
+        backgroundPixmap = QPixmap("/home/administrator/jackalgui/JackalGUI/assets/jackalGuiBackground.png")  
+        self.backgroundLabel.setPixmap(backgroundPixmap)
+        self.backgroundLabel.setScaledContents(True)  
+        self.backgroundLabel.setFixedSize(1200, 700)  
+
+        widget = QWidget()
+        widget.setLayout(self.mainLayout)
+        self.setCentralWidget(widget)
+        self.setFixedSize(1200,700)
+        
+        self.terminal_output = QPlainTextEdit()
+        self.camera_process = None
+        self.yolo_process = None
+        self.culvertai_pytorch_process = None
+        self.time = datetime.now()
+        self.cameras_dict = {}
+
+        self.createImageScreen()
+        self.createInfoScreen()
 
         def feedback_center_callback(data):
             self.motor1_label.setText("Motor #1 Temp: " + str(math.ceil(data.drivers[0].motor_temperature)) + "C")
@@ -68,18 +83,12 @@ class MainWindow(QMainWindow):
             
             self.mcu_temp_label.setText("MCU Temp: " + str(math.ceil(data.mcu_temperature)) + "C")
             self.pcb_temp_label.setText("PCB Temp: " + str(math.ceil(data.pcb_temperature)) + "C")
-            
         self.feedbackListener = ROSJackalMesssagesSubscriber(feedback_center_callback, '/feedback', 'feedback_node')
 
-        self.terminal_output = QPlainTextEdit()
-        self.camera_process = None
-        self.yolo_process = None
-        self.culvertai_pytorch_process = None
-        self.time = datetime.now()
-        self.cameras_dict = {}
-
-        self.createImageScreen()
-        self.createInfoScreen()
+        def image_callback(pixmap):
+            self.update_image(pixmap)
+            # self.calculate_and_show_fps()   
+        self.cameraListener = ROSImageSubscriber(image_callback, '/axis/image_raw/compressed', CompressedImage)
 
         def general_center_callback(data):
             if data.status[0].name == "jackal_node: General":
@@ -90,9 +99,7 @@ class MainWindow(QMainWindow):
                 self.label5.setText("Power Consumption: " + data.status[4].message)
                 # print(data.status[3].values)
                 # print("\n")
-
         self.diagnosticListener = ROSJackalDiagnosticMesssagesSubscriber(general_center_callback, '/diagnostics')
-
 
         def wifi_callback(data):
             if data.data == True:
@@ -101,16 +108,12 @@ class MainWindow(QMainWindow):
                 self.wifi_label.setText("Wifi: Not Connected")
         self.wifiListener = ROSJackalWifiConnectedSubscriber(wifi_callback, '/wifi_connected')
 
-        widget = QWidget()
-        widget.setLayout(self.mainLayout)
-        self.setCentralWidget(widget)
-        self.setFixedSize(1200,700)
+
+        
 
     def createInfoScreen(self):
         self.page2 = QWidget()
         layout = QVBoxLayout()
-        
-        # self.page2.setStyleSheet("border: 2px solid black;")  
         
         #INFO CENTER
         generalInfoWidget = QWidget()
@@ -119,6 +122,7 @@ class MainWindow(QMainWindow):
         infoWidget = QWidget()
         infoLayout = QVBoxLayout()
         infoLayout.setSpacing(0)
+        # infoWidget.setStyleSheet("border: 2px solid black;")  
         label = QLabel("Clearpath Jackal Control Center")
         infoLayout.addWidget(label)
         self.label1 = QLabel("Systems General: ")
@@ -161,7 +165,7 @@ class MainWindow(QMainWindow):
         generalInfoLayout.addWidget(tempInfoWidget)
         generalInfoWidget.setLayout(generalInfoLayout)
 
-        # layout.setStyleSheet("border: 2px solid black;")
+        generalInfoWidget.setStyleSheet("border: 1px solid black; background-color: white;")
 
         layout.addWidget(generalInfoWidget, alignment= Qt.AlignLeft)
 
@@ -195,24 +199,22 @@ class MainWindow(QMainWindow):
         terminalLayout = QVBoxLayout()
         infoLayout.setSpacing(0)
         terminalLabel = QLabel("Console Output")
-        terminalLayout.addWidget(terminalLabel)
+        terminalLabel.setStyleSheet("Color: white;")
+        terminalLayout.addWidget(terminalLabel, alignment=Qt.AlignRight)
         
         self.terminal_output.setReadOnly(True)
-        self.terminal_output.setFixedSize(550,200)
+        self.terminal_output.setFixedSize(550,300)
         self.terminal_output.setStyleSheet("background-color: black; color: white;")
         self.terminal_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.terminal_output.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         terminalLayout.addWidget(self.terminal_output,alignment=Qt.AlignTop)
         terminalWidget.setLayout(terminalLayout)
         layout.addWidget(terminalWidget,alignment=Qt.AlignLeft)
-
-        button = QPushButton("Bottom Aligned Button")
-        layout.addWidget(button, alignment=Qt.AlignCenter)
         
         # Set the layout for the page
         self.page2.setLayout(layout)
         self.page2.setFixedSize(600,600)
-        self.mainLayout.addWidget(self.page2)
+        self.mainLayout.addWidget(self.page2, alignment=Qt.AlignRight)
 
 
     def createImageScreen(self):
@@ -242,6 +244,7 @@ class MainWindow(QMainWindow):
         self.comboBackground.setLayout(self.comboLayout)
 
         title = QLabel("CAMERAS: ")
+        title.setStyleSheet("Color: white;")
         title.setFixedSize(90,20)
 
         self.fps = QLabel(self)
@@ -252,11 +255,13 @@ class MainWindow(QMainWindow):
         self.imageLayout.addWidget(self.comboBackground)
         self.imageLayout.addWidget(self.image)
         self.imageLayout.addWidget(self.fps)
-        self.image_background.setGeometry(0,0,400,400)
+        # self.image_background.setGeometry(0,0,400,400)
         self.image_background.setFixedSize(600,500)
         self.image_background.setLayout(self.imageLayout)
 
-        self.mainLayout.addWidget(self.image_background)
+        # self.image_background.setStyleSheet("background-color: white;")
+
+        self.mainLayout.addWidget(self.image_background, alignment=Qt.AlignLeft)
 
     def launch_raw_camera(self):
         command = ["roslaunch", "compressed_to_raw", "compressed_to_raw.launch"]
@@ -336,7 +341,8 @@ class MainWindow(QMainWindow):
     
     def update_camera(self):
         selected_camera = self.combo_box.currentText()
-        self.cameraListener.replace_topic(selected_camera, self.cameras_dict[selected_camera])
+        if selected_camera:
+            self.cameraListener.replace_topic(selected_camera, self.cameras_dict[selected_camera])
 
     def update_image(self, pixmap):
         scaled_pixmap = pixmap.scaled(self.image.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
