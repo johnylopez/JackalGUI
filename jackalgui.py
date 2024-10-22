@@ -108,9 +108,6 @@ class MainWindow(QMainWindow):
                 self.wifi_label.setText("Wifi: Not Connected")
         self.wifiListener = ROSJackalWifiConnectedSubscriber(wifi_callback, '/wifi_connected')
 
-
-        
-
     def createInfoScreen(self):
         self.page2 = QWidget()
         layout = QVBoxLayout()
@@ -122,7 +119,6 @@ class MainWindow(QMainWindow):
         infoWidget = QWidget()
         infoLayout = QVBoxLayout()
         infoLayout.setSpacing(0)
-        # infoWidget.setStyleSheet("border: 2px solid black;")  
         label = QLabel("Clearpath Jackal Control Center")
         infoLayout.addWidget(label)
         self.label1 = QLabel("Systems General: ")
@@ -167,7 +163,7 @@ class MainWindow(QMainWindow):
 
         generalInfoWidget.setStyleSheet("border: 1px solid black; background-color: white;")
 
-        layout.addWidget(generalInfoWidget, alignment= Qt.AlignLeft)
+        layout.addWidget(generalInfoWidget, alignment= Qt.AlignCenter)
 
         #LOAD MODEL BUTTONS
         buttonWidget = QWidget()
@@ -192,13 +188,13 @@ class MainWindow(QMainWindow):
         buttonLayout.addWidget(self.button4)
 
         buttonWidget.setLayout(buttonLayout)
-        layout.addWidget(buttonWidget)
+        layout.addWidget(buttonWidget, alignment=Qt.AlignCenter)
 
         #TERMINAL
         terminalWidget = QWidget()
         terminalLayout = QVBoxLayout()
         infoLayout.setSpacing(0)
-        terminalLabel = QLabel("Console Output")
+        terminalLabel = QLabel("Messages")
         terminalLabel.setStyleSheet("Color: white;")
         terminalLayout.addWidget(terminalLabel, alignment=Qt.AlignRight)
         
@@ -207,15 +203,14 @@ class MainWindow(QMainWindow):
         self.terminal_output.setStyleSheet("background-color: black; color: white;")
         self.terminal_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.terminal_output.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        terminalLayout.addWidget(self.terminal_output,alignment=Qt.AlignTop)
+        terminalLayout.addWidget(self.terminal_output,alignment=Qt.AlignCenter)
         terminalWidget.setLayout(terminalLayout)
         layout.addWidget(terminalWidget,alignment=Qt.AlignLeft)
         
         # Set the layout for the page
         self.page2.setLayout(layout)
-        self.page2.setFixedSize(600,600)
+        self.page2.setFixedSize(580,600)
         self.mainLayout.addWidget(self.page2, alignment=Qt.AlignRight)
-
 
     def createImageScreen(self):
         topics = rospy.get_published_topics()
@@ -251,16 +246,15 @@ class MainWindow(QMainWindow):
         self.fps.setFixedSize(70,20)
 
         self.image = QLabel(self)
+        
+        self.image.setFixedSize(600,400)
+        self.image.setStyleSheet("padding-top: 20px;")
         self.imageLayout.addWidget(title)
         self.imageLayout.addWidget(self.comboBackground)
-        self.imageLayout.addWidget(self.image)
+        self.imageLayout.addWidget(self.image, alignment=Qt.AlignCenter)
         self.imageLayout.addWidget(self.fps)
-        # self.image_background.setGeometry(0,0,400,400)
         self.image_background.setFixedSize(600,500)
         self.image_background.setLayout(self.imageLayout)
-
-        # self.image_background.setStyleSheet("background-color: white;")
-
         self.mainLayout.addWidget(self.image_background, alignment=Qt.AlignLeft)
 
     def launch_raw_camera(self):
@@ -276,7 +270,7 @@ class MainWindow(QMainWindow):
             command = ["roslaunch", "culvertai_pytorch", "culvertaipytorch.launch"]
             self.culvertai_pytorch_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.terminal_output.appendPlainText("Launching Culvert and Sewer Inspection on pytorch...")
-            self.button2.setText("Close Culvert and Sewer inspection on Pytorch")
+            self.button2.setText("Close Pytorch AI")
             self.button2.clicked.disconnect()
             self.button2.clicked.connect(self.close_culvert_pytorch_process)
         else:
@@ -345,7 +339,7 @@ class MainWindow(QMainWindow):
             self.cameraListener.replace_topic(selected_camera, self.cameras_dict[selected_camera])
 
     def update_image(self, pixmap):
-        scaled_pixmap = pixmap.scaled(self.image.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        scaled_pixmap = pixmap.scaled(self.image.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         self.image.setPixmap(scaled_pixmap)
     
 
