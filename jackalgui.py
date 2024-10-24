@@ -60,6 +60,7 @@ class MainWindow(QMainWindow):
         self.camera_process = None
         self.yolo_process = None
         self.culvertai_pytorch_process = None
+        self.pipewatchai_tensorflow_process = None
         self.time = datetime.now()
         self.cameras_dict = {}
 
@@ -168,11 +169,12 @@ class MainWindow(QMainWindow):
         #LOAD MODEL BUTTONS
         buttonWidget = QWidget()
         buttonLayout = QHBoxLayout()
-        self.button1 = QPushButton("TF Model")
+        self.button1 = QPushButton("PipeWatchAI TF")
         self.button1.setFixedSize(120,50)
+        self.button1.clicked.connect(self.launch_culvertai_tensorflow)
         buttonLayout.addWidget(self.button1)
 
-        self.button2 = QPushButton("CulvertAI PT")
+        self.button2 = QPushButton("PipeWatchAI PT")
         self.button2.setFixedSize(120,50)
         self.button2.clicked.connect(self.launch_culvertai_pytorch)
         buttonLayout.addWidget(self.button2)
@@ -269,13 +271,24 @@ class MainWindow(QMainWindow):
         if self.camera_process and self.camera_process.poll() != 0:
             command = ["roslaunch", "culvertai_pytorch", "culvertaipytorch.launch"]
             self.culvertai_pytorch_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.terminal_output.appendPlainText("Launching Culvert and Sewer Inspection on pytorch...")
+            self.terminal_output.appendPlainText("Launching PipeWatchAI on pytorch...")
             self.button2.setText("Close Pytorch AI")
             self.button2.clicked.disconnect()
             self.button2.clicked.connect(self.close_culvert_pytorch_process)
         else:
-            self.terminal_output.appendPlainText("Raw Image must be initialized before launching CulvertAI")
+            self.terminal_output.appendPlainText("Raw Image must be initialized before launching PipeWatchAI")
     
+    def launch_culvertai_tensorflow(self):
+        if self.camera_process and self.camera_process.poll() != 0:
+            command = ["roslaunch", "culvertai_ros", "culvertai.launch"]
+            self.pipewatchai_tensorflow_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.terminal_output.appendPlainText("Launching PipeWatchAI on Tensorflow...")
+            self.button1.setText("Close TF")
+            self.button1.clicked.disconnect()
+            self.button1.clicked.connect(self.close_culvert_tensorflow_process)
+        else:
+            self.terminal_output.appendPlainText("Raw Image must be initialized before launching PipeWatchAI on Tensorflow")
+
     def launch_yolo(self):
         if self.camera_process and self.camera_process.poll() != 0:
             command = ["roslaunch", "yolov7_ros", "yolov7.launch"]
@@ -286,6 +299,15 @@ class MainWindow(QMainWindow):
             self.button3.clicked.connect(self.close_yolo_process)
         else:
             self.terminal_output.appendPlainText("Raw Image must be initialized before launching YoloV7")
+
+    def close_culvert_tensorflow_process(self):
+        if self.pipewatchai_tensorflow_process:
+            self.pipewatchai_tensorflow_process.terminate()
+            self.button1.setText("PipeWatchAI TF")
+            self.terminal_output.appendPlainText("PipeWatchAI Tensorflow closed")
+            self.fps.setText("")
+            self.button1.clicked.disconnect()
+            self.button1.clicked.connect(self.launch_culvertai_tensorflow)
 
     def close_culvert_pytorch_process(self):
         if self.culvertai_pytorch_process:

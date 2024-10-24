@@ -10,4 +10,4 @@ source $workspace_path/devel/setup.bash
 export ROS_MASTER_URI=http://uono01-1:11311
 
 # Run your Python script
-python3 /home/administrator/jackalgui/JackalGUI/test.py
+python3 /home/administrator/jackalgui/JackalGUI/jackalgui.py
