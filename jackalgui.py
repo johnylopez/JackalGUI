@@ -5,8 +5,10 @@ import rospy
 import math
 from datetime import datetime
 from sensor_msgs.msg import Image, CompressedImage
+from std_msgs.msg import String
 from jackal_msgs.msg import Feedback
 from imageHandler import ROSImageSubscriber
+from nav_msgs.msg import Odometry
 from feedbackHandler import ROSJackalMesssagesSubscriber, ROSJackalDiagnosticMesssagesSubscriber, ROSJackalWifiConnectedSubscriber
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor, QImage, QPixmap
@@ -46,7 +48,7 @@ class MainWindow(QMainWindow):
         self.mainLayout = QHBoxLayout()
 
         self.backgroundLabel = QLabel(self)
-        backgroundPixmap = QPixmap("/home/administrator/jackalgui/JackalGUI/assets/jackalGuiBackground.png")  
+        backgroundPixmap = QPixmap("/home/administrator/jackalgui/JackalGUI/assets/jackalGuiBackground2.png")  
         self.backgroundLabel.setPixmap(backgroundPixmap)
         self.backgroundLabel.setScaledContents(True)  
         self.backgroundLabel.setFixedSize(1200, 700)  
@@ -108,6 +110,38 @@ class MainWindow(QMainWindow):
             else:
                 self.wifi_label.setText("Wifi: Not Connected")
         self.wifiListener = ROSJackalWifiConnectedSubscriber(wifi_callback, '/wifi_connected')
+
+        self.previous_x = 0.0
+        self.previous_y = 0.0
+        self.current_position = 0.0
+
+        self.detections_subscriber = None
+        self.odometry_subscriber = None
+
+    def odom_callback(self, msg):
+            global previous_x, previous_y
+
+            current_x = msg.pose.pose.position.x
+            current_y = msg.pose.pose.position.y
+
+            delta_x = current_x - self.previous_x
+            delta_y = current_y - self.previous_y
+            distance_moved = math.sqrt(delta_x**2 + delta_y**2)
+
+            distance_feet = distance_moved * 3.28084
+
+            if delta_x > 0 or delta_y > 0:
+                self.current_position += distance_feet
+            else:
+                self.current_position -= distance_feet
+
+            self.position_label.setText(f"{self.current_position:.1f}ft")
+            self.previous_x = current_x
+            self.previous_y = current_y
+
+    def detections_callback(self, msg):
+        detections = msg.data.strip(", ").strip()
+        self.detections_label.setText("Deficiencies: " + detections)
 
     def createInfoScreen(self):
         self.page2 = QWidget()
@@ -241,21 +275,41 @@ class MainWindow(QMainWindow):
         self.comboBackground.setLayout(self.comboLayout)
 
         title = QLabel("CAMERAS: ")
-        title.setStyleSheet("Color: white;")
+        title.setStyleSheet("Color: white; ")
         title.setFixedSize(90,20)
 
         self.fps = QLabel(self)
         self.fps.setFixedSize(70,20)
 
+        self.inspection_widget = QWidget()
+        self.inspection_layout = QHBoxLayout()
+        self.position_label = QLabel(self)
+        self.position_label.setFixedSize(50,20)
+        self.position_label.setStyleSheet("font-size: 24px;")
+        self.detections_label = QLabel(self)
+        self.detections_label.setFixedSize(500,20)
+        self.detections_label.setStyleSheet("font-size: 24px;")
+        self.inspection_button = QPushButton("Start Inspection")
+        self.inspection_button.setFixedSize(150,30)
+        self.inspection_button.clicked.connect(self.start_inspection)
+        self.inspection_widget.setFixedSize(600,40)
+        self.inspection_widget.setLayout(self.inspection_layout)
+        self.inspection_layout.addWidget(self.position_label)
+        self.inspection_layout.addWidget(self.detections_label)
+        self.inspection_layout.addWidget(self.inspection_button)
+        self.position_label.hide()
+        self.detections_label.hide()
+        self.inspection_button.hide()
+
+
         self.image = QLabel(self)
-        
         self.image.setFixedSize(600,400)
-        self.image.setStyleSheet("padding-top: 20px;")
+        self.image.setStyleSheet("margin-top: 20px;")
         self.imageLayout.addWidget(title)
         self.imageLayout.addWidget(self.comboBackground)
         self.imageLayout.addWidget(self.image, alignment=Qt.AlignCenter)
-        self.imageLayout.addWidget(self.fps)
-        self.image_background.setFixedSize(600,500)
+        self.imageLayout.addWidget(self.inspection_widget)
+        self.image_background.setFixedSize(600,530)
         self.image_background.setLayout(self.imageLayout)
         self.mainLayout.addWidget(self.image_background, alignment=Qt.AlignLeft)
 
@@ -272,7 +326,10 @@ class MainWindow(QMainWindow):
             command = ["roslaunch", "culvertai_pytorch", "culvertaipytorch.launch"]
             self.culvertai_pytorch_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.terminal_output.appendPlainText("Launching PipeWatchAI on pytorch...")
-            self.button2.setText("Close Pytorch AI")
+            self.position_label.show()
+            self.detections_label.show()
+            self.inspection_button.show()
+            self.button2.setText("Close PipeWatch")
             self.button2.clicked.disconnect()
             self.button2.clicked.connect(self.close_culvert_pytorch_process)
         else:
@@ -312,11 +369,22 @@ class MainWindow(QMainWindow):
     def close_culvert_pytorch_process(self):
         if self.culvertai_pytorch_process:
             self.culvertai_pytorch_process.terminate()
-            self.button2.setText("CulvertAI PT")
-            self.terminal_output.appendPlainText("CulvertAI Pytorch closed")
+            self.button2.setText("PipeWatchAI PT")
+            self.terminal_output.appendPlainText("PipeWatchAI Pytorch closed")
+
+            self.position_label.hide()
+            self.detections_label.hide()
+            self.inspection_button.hide()
+
+            self.detections_label.setText("")
+            if self.detections_subscriber:
+                self.detections_subscriber.unregister()
+
+            self.detections_subscriber = None
             self.fps.setText("")
             self.button2.clicked.disconnect()
             self.button2.clicked.connect(self.launch_culvertai_pytorch)
+            self.stop_inspection()
 
     def close_camera_process(self):
         if self.camera_process:
@@ -359,10 +427,30 @@ class MainWindow(QMainWindow):
         selected_camera = self.combo_box.currentText()
         if selected_camera:
             self.cameraListener.replace_topic(selected_camera, self.cameras_dict[selected_camera])
+            if selected_camera == "/culvertai/culvert_ai/visualization":
+                self.detections_subscriber = rospy.Subscriber('culvertai/culvert_ai/detections', String, self.detections_callback)
 
     def update_image(self, pixmap):
         scaled_pixmap = pixmap.scaled(self.image.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         self.image.setPixmap(scaled_pixmap)
+
+    def start_inspection(self):
+        self.previous_x = 0.0
+        self.previous_y = 0.0
+        self.current_position = 0.0
+        self.odometry_subscriber = rospy.Subscriber('odometry/filtered', Odometry, self.odom_callback)
+        self.inspection_button.setText("Stop Inspection")
+        self.inspection_button.clicked.disconnect()
+        self.inspection_button.clicked.connect(self.stop_inspection)
+
+    def stop_inspection(self):
+        if self.odometry_subscriber:
+            self.odometry_subscriber.unregister()
+            self.odometry_subscriber = None
+            self.inspection_button.setText("Start Inspection")
+            self.inspection_button.clicked.disconnect()
+            self.inspection_button.clicked.connect(self.start_inspection)
+
     
 
 def main():

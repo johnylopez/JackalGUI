@@ -1,41 +1,46 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QWidget, QPushButton
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import Qt
+import cv2
+import numpy as np
 
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
+width, height = 400, 400
+img = np.ones((height, width, 3), dtype=np.uint8) * 255
 
-        # Create a central widget
-        self.central_widget = QWidget(self)
-        self.setCentralWidget(self.central_widget)
 
-        # Create a layout
-        layout = QVBoxLayout(self.central_widget)
+#Outer Circle
+circle_center = (200, 65) 
+circle_radius = 60  
+circle_color = (174, 175, 177)  
+circle_thickness = 3  
+cv2.circle(img, circle_center, circle_radius, circle_color, circle_thickness)
 
-        # Load the background image
-        self.background_label = QLabel(self)
-        self.background_pixmap = QPixmap('/home/administrator/jackalgui/JackalGUI/assets/jackalGuiBackground.png')  # Replace with your image path
-        self.background_label.setPixmap(self.background_pixmap)
-        self.background_label.setScaledContents(True)
-        self.background_label.setFixedSize(1200, 700)  # Set the size of the label
+#Outer Pipe
+pipe_height = 100
+pipe_width = 60 
+pipe_top_left = (circle_center[0] - pipe_width // 2, circle_center[1] + circle_radius - 10) 
+pipe_bottom_right = (circle_center[0] + pipe_width // 2, circle_center[1] + circle_radius + pipe_height)  
+pipe_color = (174, 175, 177)  
+pipe_thickness = 3 
+cv2.rectangle(img, pipe_top_left, pipe_bottom_right, pipe_color, pipe_thickness)
 
-        # Add the QLabel to the layout
-        layout.addWidget(self.background_label, alignment=Qt.AlignCenter)
+#Inner Pipe
+pipe_width2 = 50 
+pipe_height2 = 95  
+pipe_top_left2 = (circle_center[0] - pipe_width2 // 2, circle_center[1] + circle_radius - 5) 
+pipe_bottom_right2 = (circle_center[0] + pipe_width2 // 2, circle_center[1] + circle_radius + pipe_height2)
+cv2.rectangle(img, pipe_top_left2, pipe_bottom_right2, (222,223,224), pipe_thickness)  
 
-        # Create a button
-        self.button = QPushButton("Click me", self)
-        # self.button.setGeometry(100, 100, 100, 30)  # Set position and size
+#Inner Circle
+cv2.circle(img, circle_center, 55, (222,223,224), circle_thickness)
 
-        # Set the layout margins to zero to avoid spacing issues
-        layout.setContentsMargins(0, 0, 0, 0)
+#Intersection
+small_rect_width = 40  
+small_rect_height = 50 
+small_rect_top_left = (circle_center[0] - small_rect_width // 2, circle_center[1] + circle_radius - small_rect_height // 2)  #
+cv2.rectangle(img, small_rect_top_left, (small_rect_top_left[0] + small_rect_width, small_rect_top_left[1] + small_rect_height), (255, 255, 255), -1)
 
-        self.setWindowTitle("Background Image Example")
-        self.setFixedSize(1200, 700)
+# Save the image
+cv2.imwrite('circle_with_pipe_and_small_white_rect_open_cv.png', img)
 
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+# Display the image
+cv2.imshow("Circle with Pipe and Small White Rectangle", img)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
