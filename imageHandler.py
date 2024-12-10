@@ -33,7 +33,7 @@ class ROSImageSubscriber:
         
         qt_image = self.convert_cv_to_qt(cv_image)
         pixmap = QPixmap(qt_image)
-        self.image_callback(pixmap)
+        self.image_callback(pixmap, cv_image)
 
     def convert_cv_to_qt(self, cv_image):
         rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
@@ -42,5 +42,7 @@ class ROSImageSubscriber:
         qt_image = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
         return qt_image
 
+    def unsubscribe(self):
+        self.image_sub.unregister()
 
 

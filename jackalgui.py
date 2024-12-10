@@ -3,11 +3,14 @@ import os
 import subprocess
 import rospy
 import math
+import cv2
+from cv_bridge import CvBridge
 from datetime import datetime
 from sensor_msgs.msg import Image, CompressedImage
 from std_msgs.msg import String
 from jackal_msgs.msg import Feedback
 from imageHandler import ROSImageSubscriber
+from report_generation import create_log, generateReport
 from nav_msgs.msg import Odometry
 from feedbackHandler import ROSJackalMesssagesSubscriber, ROSJackalDiagnosticMesssagesSubscriber, ROSJackalWifiConnectedSubscriber
 from PyQt5.QtCore import Qt
@@ -88,10 +91,13 @@ class MainWindow(QMainWindow):
             self.pcb_temp_label.setText("PCB Temp: " + str(math.ceil(data.pcb_temperature)) + "C")
         self.feedbackListener = ROSJackalMesssagesSubscriber(feedback_center_callback, '/feedback', 'feedback_node')
 
-        def image_callback(pixmap):
+        def image_callback(pixmap, cv_image):
             self.update_image(pixmap)
             # self.calculate_and_show_fps()   
         self.cameraListener = ROSImageSubscriber(image_callback, '/axis/image_raw/compressed', CompressedImage)
+
+        
+        self.global_cameraListener = None
 
         def general_center_callback(data):
             if data.status[0].name == "jackal_node: General":
@@ -118,29 +124,47 @@ class MainWindow(QMainWindow):
         self.detections_subscriber = None
         self.odometry_subscriber = None
 
+        self.current_image = None
+        self.bridge = CvBridge()
+
+        self.deficiencies_log = {}
+        self.inspection_mode = False
+    
+    def closeEvent(self, event):
+        rospy.signal_shutdown("Closing the application")
+        event.accept()
+    
+    def global_image_callback(self,pixmap,cv_image):
+        self.current_image = cv_image
+
     def odom_callback(self, msg):
-            global previous_x, previous_y
+        print(self.current_position)
+        print(self.previous_x)
+        print(self.previous_y)
+        global previous_x, previous_y
 
-            current_x = msg.pose.pose.position.x
-            current_y = msg.pose.pose.position.y
+        current_x = msg.pose.pose.position.x
+        current_y = msg.pose.pose.position.y
 
-            delta_x = current_x - self.previous_x
-            delta_y = current_y - self.previous_y
-            distance_moved = math.sqrt(delta_x**2 + delta_y**2)
+        delta_x = current_x - self.previous_x
+        delta_y = current_y - self.previous_y
+        distance_moved = math.sqrt(delta_x**2 + delta_y**2)
 
-            distance_feet = distance_moved * 3.28084
+        distance_feet = distance_moved * 3.28084
 
-            if delta_x > 0 or delta_y > 0:
-                self.current_position += distance_feet
-            else:
-                self.current_position -= distance_feet
+        if delta_x > 0 or delta_y > 0:
+            self.current_position += distance_feet
+        else:
+            self.current_position -= distance_feet
 
-            self.position_label.setText(f"{self.current_position:.1f}ft")
-            self.previous_x = current_x
-            self.previous_y = current_y
+        self.position_label.setText(f"{self.current_position:.1f}ft")
+        self.previous_x = current_x
+        self.previous_y = current_y
 
     def detections_callback(self, msg):
         detections = msg.data.strip(", ").strip()
+        if(detections != "" and self.inspection_mode):
+            self.deficiencies_log[str(round(self.current_position, 1))] = {"detections": detections, "image": self.current_image}
         self.detections_label.setText("Deficiencies: " + detections)
 
     def createInfoScreen(self):
@@ -435,11 +459,13 @@ class MainWindow(QMainWindow):
         self.image.setPixmap(scaled_pixmap)
 
     def start_inspection(self):
+        self.inspection_mode = True
         self.previous_x = 0.0
         self.previous_y = 0.0
         self.current_position = 0.0
         self.odometry_subscriber = rospy.Subscriber('odometry/filtered', Odometry, self.odom_callback)
         self.inspection_button.setText("Stop Inspection")
+        self.global_cameraListener = ROSImageSubscriber(self.global_image_callback, '/camera/image_raw', Image)
         self.inspection_button.clicked.disconnect()
         self.inspection_button.clicked.connect(self.stop_inspection)
 
@@ -447,10 +473,14 @@ class MainWindow(QMainWindow):
         if self.odometry_subscriber:
             self.odometry_subscriber.unregister()
             self.odometry_subscriber = None
+            self.global_cameraListener.unsubscribe()
+            self.global_cameraListener = None
             self.inspection_button.setText("Start Inspection")
             self.inspection_button.clicked.disconnect()
             self.inspection_button.clicked.connect(self.start_inspection)
-
+            self.inspection_mode = False
+            output = create_log(self.deficiencies_log)
+            generateReport(output)
     
 
 def main():
